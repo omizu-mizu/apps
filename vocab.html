@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0e1116">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>英単語カード</title>
+<style>
+  :root{
+    --bg:#0e1116;
+    --card:#181d26;
+    --card2:#212836;
+    --line:#2f3949;
+    --fg:#e9edf5;
+    --muted:#94a3b8;
+    --accent:#3b82f6;
+    --ok:#22c55e;
+    --ng:#ef4444;
+    --warn:#f59e0b;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{
+    margin:0;background:var(--bg);color:var(--fg);
+    font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,system-ui,sans-serif;
+    display:flex;flex-direction:column;align-items:center;
+    height:100dvh;overflow:hidden;
+    padding:max(12px,env(safe-area-inset-top)) 16px max(12px,env(safe-area-inset-bottom));
+  }
+  .screen{width:100%;max-width:560px;flex:1;min-height:0;display:none;flex-direction:column;gap:12px}
+  .screen.on{display:flex}
+  h1{font-size:20px;margin:4px 0 0;letter-spacing:.04em}
+  .muted{color:var(--muted);font-size:13px}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px 16px}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .lbl{font-size:13px;color:var(--muted);margin-bottom:8px}
+  .btn{
+    background:var(--card2);color:var(--fg);border:1px solid var(--line);
+    border-radius:12px;padding:10px 14px;font-size:15px;cursor:pointer;font-family:inherit;
+  }
+  .btn:active{transform:scale(.97)}
+  .btn.primary{background:var(--accent);border-color:var(--accent);font-weight:700}
+  .btn.big{width:100%;padding:16px;font-size:18px}
+  .seg{display:flex;flex-wrap:wrap;gap:6px}
+  .seg .btn{padding:8px 12px;font-size:14px}
+  .seg .btn.sel{border-color:var(--accent);background:#1d3357}
+  input[type=number]{
+    width:84px;background:var(--card2);color:var(--fg);border:1px solid var(--line);
+    border-radius:10px;padding:8px 10px;font-size:16px;font-family:inherit;
+  }
+  .scroll{overflow:auto;min-height:0;display:flex;flex-direction:column;gap:12px;padding-bottom:4px}
+  .boxes{display:flex;gap:4px;height:10px;border-radius:999px;overflow:hidden;background:var(--card2)}
+  .boxes>div{height:100%}
+
+  /* ---- 学習画面 ---- */
+  .top{display:flex;align-items:center;gap:8px}
+  .top .prog{flex:1;height:8px;background:var(--card);border:1px solid var(--line);border-radius:999px;overflow:hidden}
+  .top .prog>div{height:100%;background:var(--accent);width:0;transition:width .2s}
+  .top .cnt{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;min-width:64px;text-align:right}
+  .top .btn{padding:6px 10px;font-size:13px}
+
+  .cardwrap{flex:1;min-height:0;perspective:1200px}
+  .flash{
+    position:relative;width:100%;height:100%;transform-style:preserve-3d;
+    transition:transform .35s;cursor:pointer;
+  }
+  .flash.flip{transform:rotateY(180deg)}
+  .face{
+    position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;
+    background:var(--card);border:1px solid var(--line);border-radius:20px;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:20px;text-align:center;gap:10px;overflow:auto;
+  }
+  .face.back{transform:rotateY(180deg)}
+  .num{position:absolute;top:12px;left:16px;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .pos{
+    position:absolute;top:10px;right:14px;font-size:12px;color:var(--muted);
+    border:1px solid var(--line);border-radius:6px;padding:1px 6px;
+  }
+  .word{font-family:"Times New Roman",Georgia,serif;font-size:clamp(34px,10vw,52px);font-weight:700;word-break:break-word}
+  .pron{font-family:"Lucida Sans Unicode","Arial Unicode MS","Segoe UI",sans-serif;color:var(--muted);font-size:18px}
+  .main{font-size:clamp(22px,6.4vw,30px);font-weight:700;color:#ff8a8a;line-height:1.4}
+  .sub{font-size:16px;color:var(--fg);opacity:.85;line-height:1.6}
+  .hint{font-size:12px;color:var(--muted);position:absolute;bottom:12px;left:0;right:0}
+  .say{
+    background:none;border:1px solid var(--line);color:var(--fg);border-radius:999px;
+    padding:4px 12px;font-size:14px;cursor:pointer;font-family:inherit;
+  }
+
+  .judge{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .judge .btn{padding:16px;font-size:18px;font-weight:700}
+  .judge .ng{border-color:var(--ng);color:#ffb4b4}
+  .judge .ok{border-color:var(--ok);color:#a7f3c0}
+  .judge.hide{visibility:hidden}
+
+  /* ---- 結果 ---- */
+  .big-num{font-size:44px;font-weight:700;font-variant-numeric:tabular-nums}
+  .list{display:flex;flex-direction:column;gap:6px}
+  .list div{display:flex;gap:10px;font-size:15px;border-bottom:1px solid var(--line);padding:6px 2px}
+  .list .w{font-family:"Times New Roman",Georgia,serif;font-weight:700;min-width:40%}
+</style>
+</head>
+<body>
+
+<!-- ===== データ未読み込み ===== -->
+<section class="screen" id="sImport">
+  <h1>英単語カード</h1>
+  <div class="panel">
+    <div class="lbl">単語データを読み込んでください</div>
+    <p class="muted" style="margin:0 0 12px">
+      TSV（タブ区切り）または JSON ファイル。<br>
+      TSV の列：番号 / 単語 / 品詞 / 発音 / 主な訳 / その他の訳
+    </p>
+    <label class="btn primary big" style="display:block;text-align:center">
+      ファイルを選ぶ
+      <input type="file" id="file" accept=".tsv,.txt,.csv,.json,text/plain,application/json" hidden>
+    </label>
+    <p class="muted" id="importMsg" style="margin:10px 0 0"></p>
+  </div>
+  <p class="muted">データはこの端末のブラウザ内にだけ保存されます。</p>
+</section>
+
+<!-- ===== 設定 ===== -->
+<section class="screen" id="sHome">
+  <h1>英単語カード</h1>
+  <div class="scroll">
+    <div class="panel">
+      <div class="lbl">習熟度（全 <span id="total"></span> 語）</div>
+      <div class="boxes" id="boxBar"></div>
+      <div class="row muted" id="boxLegend" style="margin-top:8px;gap:12px"></div>
+    </div>
+
+    <div class="panel">
+      <div class="lbl">範囲（番号）</div>
+      <div class="row">
+        <input type="number" id="from" inputmode="numeric" min="1"> 〜
+        <input type="number" id="to" inputmode="numeric" min="1">
+      </div>
+      <div class="seg" id="presets" style="margin-top:10px"></div>
+    </div>
+
+    <div class="panel">
+      <div class="lbl">出題</div>
+      <div class="seg" id="segFilter">
+        <button class="btn" data-v="all">すべて</button>
+        <button class="btn" data-v="weak">苦手だけ</button>
+        <button class="btn" data-v="new">未学習だけ</button>
+      </div>
+      <div class="lbl" style="margin-top:14px">表面</div>
+      <div class="seg" id="segDir">
+        <button class="btn" data-v="e2j">英語 → 日本語</button>
+        <button class="btn" data-v="j2e">日本語 → 英語</button>
+      </div>
+      <div class="lbl" style="margin-top:14px">順番</div>
+      <div class="seg" id="segOrder">
+        <button class="btn" data-v="smart">苦手優先</button>
+        <button class="btn" data-v="shuffle">ランダム</button>
+        <button class="btn" data-v="seq">番号順</button>
+      </div>
+      <div class="lbl" style="margin-top:14px">1 回の枚数</div>
+      <div class="seg" id="segSize">
+        <button class="btn" data-v="20">20</button>
+        <button class="btn" data-v="50">50</button>
+        <button class="btn" data-v="100">100</button>
+        <button class="btn" data-v="0">全部</button>
+      </div>
+      <div class="lbl" style="margin-top:14px">読み上げ</div>
+      <div class="seg" id="segSpeak">
+        <button class="btn" data-v="off">しない</button>
+        <button class="btn" data-v="flip">めくったとき</button>
+        <button class="btn" data-v="show">表示したとき</button>
+      </div>
+    </div>
+
+    <p class="muted" id="poolMsg" style="margin:0"></p>
+    <button class="btn primary big" id="start">スタート</button>
+
+    <div class="row" style="justify-content:space-between">
+      <button class="btn" id="resetProg">記録をリセット</button>
+      <button class="btn" id="reload">データを入れ替え</button>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 学習 ===== -->
+<section class="screen" id="sStudy">
+  <div class="top">
+    <button class="btn" id="quit">終了</button>
+    <div class="prog"><div id="progBar"></div></div>
+    <div class="cnt" id="cnt"></div>
+  </div>
+  <div class="cardwrap">
+    <div class="flash" id="flash">
+      <div class="face front" id="front"></div>
+      <div class="face back" id="back"></div>
+    </div>
+  </div>
+  <div class="judge hide" id="judge">
+    <button class="btn ng" id="bNg">まだ</button>
+    <button class="btn ok" id="bOk">覚えた</button>
+  </div>
+</section>
+
+<!-- ===== 結果 ===== -->
+<section class="screen" id="sResult">
+  <h1>おつかれさま</h1>
+  <div class="scroll">
+    <div class="panel row" style="justify-content:space-around;text-align:center">
+      <div><div class="muted">1 回目で覚えた</div><div class="big-num" id="rOk" style="color:var(--ok)"></div></div>
+      <div><div class="muted">まだ</div><div class="big-num" id="rNg" style="color:var(--ng)"></div></div>
+    </div>
+    <div class="panel" id="rMissPanel">
+      <div class="lbl">「まだ」を押した単語</div>
+      <div class="list" id="rMiss"></div>
+    </div>
+    <button class="btn primary big" id="again">「まだ」の単語をもう一度</button>
+    <button class="btn big" id="home">設定に戻る</button>
+  </div>
+</section>
+
+<script>
+(() => {
+  const DATA_KEY = 'vocab.data.v1';
+  const PROG_KEY = 'vocab.prog.v1';
+  const SET_KEY  = 'vocab.settings.v1';
+  const MAX_BOX = 5;               // 0:未学習扱いではなく「まだ」, 1〜5:覚えた回数（連続）
+  const BOX_COLOR = ['#ef4444','#f97316','#f59e0b','#84cc16','#22c55e','#10b981'];
+
+  const $ = id => document.getElementById(id);
+  const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
+  const save = (k, v) => localStorage.setItem(k, JSON.stringify(v));
+
+  let words = load(DATA_KEY, null);       // [{n,w,p,r,m,s}]
+  let prog  = load(PROG_KEY, {});         // { n: {b:box, seen:count, last:ts} }
+  let set   = Object.assign({ from:1, to:100, filter:'all', dir:'e2j', order:'smart', size:'50', speak:'off' }, load(SET_KEY, {}));
+
+  function show(id){ document.querySelectorAll('.screen').forEach(s => s.classList.toggle('on', s.id === id)); }
+
+  /* ---------- 読み込み ---------- */
+  function parse(text){
+    text = text.replace(/^﻿/, '').trim();
+    if (text.startsWith('[') || text.startsWith('{')) {
+      let arr = JSON.parse(text);
+      if (!Array.isArray(arr)) arr = arr.words || [];
+      return arr.map((o, i) => ({
+        n: +(o.n ?? o.num ?? o.no ?? i + 1), w: String(o.w ?? o.word ?? ''),
+        p: String(o.p ?? o.pos ?? ''), r: String(o.r ?? o.pron ?? ''),
+        m: String(o.m ?? o.main ?? o.meaning ?? ''), s: String(o.s ?? o.sub ?? '')
+      })).filter(o => o.w && o.m);
+    }
+    const sep = text.includes('\t') ? '\t' : ',';
+    return text.split(/\r?\n/).map(l => l.split(sep)).filter(c => c.length >= 2).map((c, i) => {
+      if (c.length >= 5) return { n:+c[0] || i + 1, w:c[1].trim(), p:(c[2]||'').trim(), r:(c[3]||'').trim(), m:(c[4]||'').trim(), s:(c[5]||'').trim() };
+      return { n:i + 1, w:c[0].trim(), p:'', r:'', m:c[1].trim(), s:(c[2]||'').trim() };   // 単語,訳 だけの簡易形式
+    }).filter(o => o.w && o.m && !isNaN(o.n));
+  }
+
+  $('file').addEventListener('change', async e => {
+    const f = e.target.files[0]; if (!f) return;
+    try {
+      const list = parse(await f.text());
+      if (!list.length) throw new Error('単語が見つかりませんでした');
+      list.sort((a, b) => a.n - b.n);
+      words = list; save(DATA_KEY, words);
+      const maxN = words[words.length - 1].n;
+      if (set.to > maxN || set.from > maxN) { set.from = words[0].n; set.to = Math.min(maxN, words[0].n + 99); save(SET_KEY, set); }
+      $('importMsg').textContent = '';
+      home();
+    } catch (err) {
+      $('importMsg').textContent = '読み込めませんでした：' + err.message;
+    }
+    e.target.value = '';
+  });
+
+  /* ---------- 設定画面 ---------- */
+  function segInit(id, key){
+    const seg = $(id);
+    const sync = () => seg.querySelectorAll('.btn').forEach(b => b.classList.toggle('sel', b.dataset.v === String(set[key])));
+    seg.addEventListener('click', e => {
+      const b = e.target.closest('.btn'); if (!b) return;
+      set[key] = b.dataset.v; save(SET_KEY, set); sync(); poolInfo();
+    });
+    sync();
+  }
+  segInit('segFilter', 'filter'); segInit('segDir', 'dir'); segInit('segOrder', 'order');
+  segInit('segSize', 'size');     segInit('segSpeak', 'speak');
+
+  const boxOf = n => prog[n]?.b;   // undefined = 未学習
+
+  function pool(){
+    const lo = Math.min(set.from, set.to), hi = Math.max(set.from, set.to);
+    return words.filter(w => w.n >= lo && w.n <= hi).filter(w => {
+      const b = boxOf(w.n);
+      if (set.filter === 'weak') return b === 0;
+      if (set.filter === 'new')  return b === undefined;
+      return true;
+    });
+  }
+  function poolInfo(){
+    const n = pool().length, size = +set.size || n;
+    $('poolMsg').textContent = n ? `対象 ${n} 語（今回 ${Math.min(n, size)} 枚）` : '対象の単語がありません';
+    $('start').disabled = !n; $('start').style.opacity = n ? 1 : .5;
+  }
+
+  function home(){
+    if (!words || !words.length) { show('sImport'); return; }
+    $('total').textContent = words.length;
+    const cnt = Array(MAX_BOX + 2).fill(0);   // [未学習, b0..b5]
+    words.forEach(w => { const b = boxOf(w.n); cnt[b === undefined ? 0 : b + 1]++; });
+    const labels = ['未学習', 'まだ', '1回', '2回', '3回', '4回', '5回+'];
+    const colors = ['#334155', ...BOX_COLOR];
+    $('boxBar').innerHTML = cnt.map((c, i) => c ? `<div style="flex:${c};background:${colors[i]}"></div>` : '').join('');
+    $('boxLegend').innerHTML = cnt.map((c, i) => c ? `<span><span style="color:${colors[i]}">●</span> ${labels[i]} ${c}</span>` : '').join('');
+
+    const first = words[0].n, last = words[words.length - 1].n;
+    $('from').min = $('to').min = first; $('from').max = $('to').max = last;
+    $('from').value = set.from; $('to').value = set.to;
+    const ps = [];
+    for (let a = Math.floor((first - 1) / 100) * 100 + 1; a <= last; a += 100) ps.push([a, Math.min(a + 99, last)]);
+    ps.push([first, last]);
+    $('presets').innerHTML = ps.map(([a, b], i) =>
+      `<button class="btn" data-a="${a}" data-b="${b}">${i === ps.length - 1 ? '全部' : a + '–' + b}</button>`).join('');
+    poolInfo();
+    show('sHome');
+  }
+  $('presets').addEventListener('click', e => {
+    const b = e.target.closest('.btn'); if (!b) return;
+    set.from = +b.dataset.a; set.to = +b.dataset.b; save(SET_KEY, set);
+    $('from').value = set.from; $('to').value = set.to; poolInfo();
+  });
+  ['from', 'to'].forEach(k => $(k).addEventListener('change', () => {
+    const v = parseInt($(k).value, 10);
+    if (!isNaN(v)) { set[k] = v; save(SET_KEY, set); }
+    $(k).value = set[k]; poolInfo();
+  }));
+
+  $('resetProg').addEventListener('click', () => {
+    if (!confirm('すべての学習記録を消去します。よろしいですか？')) return;
+    prog = {}; save(PROG_KEY, prog); home();
+  });
+  $('reload').addEventListener('click', () => show('sImport'));
+
+  /* ---------- 学習 ---------- */
+  let queue = [], done = 0, total = 0, cur = null, flipped = false;
+  let firstOk = new Set(), missed = new Map();
+
+  const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; };
+
+  function startWith(list){
+    if (set.order === 'seq') list = [...list].sort((a, b) => a.n - b.n);
+    else if (set.order === 'shuffle') list = shuffle([...list]);
+    else {
+      // 苦手優先：まだ → 未学習 → 箱の小さい順 → 最後に見たのが古い順、同順位はランダム
+      const key = w => { const b = boxOf(w.n); return b === undefined ? 0.5 : b; };
+      list = shuffle([...list]).sort((a, b) => key(a) - key(b) || (prog[a.n]?.last || 0) - (prog[b.n]?.last || 0));
+    }
+    const size = +set.size || list.length;
+    queue = list.slice(0, size);
+    if (set.order === 'smart') shuffle(queue);   // 選んだ束の中では混ぜる
+    total = queue.length; done = 0; firstOk = new Set(); missed = new Map();
+    show('sStudy'); next();
+  }
+  $('start').addEventListener('click', () => startWith(pool()));
+
+  function esc(s){ return s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+  function render(){
+    const w = cur;
+    const head = `<div class="num">No.${w.n}</div>${w.p ? `<div class="pos">${esc(w.p)}</div>` : ''}`;
+    const en = `<div class="word">${esc(w.w)}</div>${w.r ? `<div class="pron">[${esc(w.r)}]</div>` : ''}
+                <button class="say" data-say>🔊 発音</button>`;
+    const ja = `<div class="main">${esc(w.m)}</div>${w.s ? `<div class="sub">${esc(w.s)}</div>` : ''}`;
+    if (set.dir === 'e2j') {
+      $('front').innerHTML = head + en + `<div class="hint">タップして意味を見る</div>`;
+      $('back').innerHTML  = head + en + `<hr style="width:60%;border:0;border-top:1px solid var(--line)">` + ja;
+    } else {
+      $('front').innerHTML = head + ja + `<div class="hint">タップして英語を見る</div>`;
+      $('back').innerHTML  = head + ja + `<hr style="width:60%;border:0;border-top:1px solid var(--line)">` + en;
+    }
+  }
+
+  function next(){
+    $('cnt').textContent = `${done} / ${total}`;
+    $('progBar').style.width = (total ? done / total * 100 : 0) + '%';
+    if (!queue.length) return result();
+    cur = queue.shift(); flipped = false;
+    $('flash').style.transition = 'none'; $('flash').classList.remove('flip');
+    void $('flash').offsetWidth; $('flash').style.transition = '';
+    $('judge').classList.add('hide');
+    render();
+    if (set.speak === 'show' && set.dir === 'e2j') speak(cur.w);
+  }
+
+  function flip(){
+    if (flipped) return;
+    flipped = true; $('flash').classList.add('flip'); $('judge').classList.remove('hide');
+    if (set.speak === 'flip' || (set.speak === 'show' && set.dir === 'j2e')) speak(cur.w);
+  }
+  $('flash').addEventListener('click', e => {
+    if (e.target.closest('[data-say]')) { e.stopPropagation(); speak(cur.w); return; }
+    flipped ? null : flip();
+  });
+
+  function grade(ok){
+    if (!flipped) return;
+    const n = cur.n, p = prog[n] || { b: 0, seen: 0 };
+    p.seen++; p.last = Date.now();
+    if (ok) {
+      if (!missed.has(n)) { p.b = Math.min(MAX_BOX, (p.b ?? 0) + 1); firstOk.add(n); }
+      done++;
+    } else {
+      p.b = 0; missed.set(n, cur);
+      // 少し後（3〜5 枚後）にもう一度出す
+      const at = Math.min(queue.length, 3 + (Math.random() * 3 | 0));
+      queue.splice(at, 0, cur);
+    }
+    prog[n] = p; save(PROG_KEY, prog);
+    next();
+  }
+  $('bOk').addEventListener('click', () => grade(true));
+  $('bNg').addEventListener('click', () => grade(false));
+
+  document.addEventListener('keydown', e => {
+    if (!$('sStudy').classList.contains('on')) return;
+    if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); flip(); }
+    else if (e.key === 'ArrowRight' || e.key === 'k') grade(true);
+    else if (e.key === 'ArrowLeft'  || e.key === 'j') grade(false);
+  });
+
+  $('quit').addEventListener('click', () => { queue = []; result(); });
+
+  function result(){
+    $('rOk').textContent = firstOk.size;
+    $('rNg').textContent = missed.size;
+    const list = [...missed.values()].sort((a, b) => a.n - b.n);
+    $('rMiss').innerHTML = list.map(w => `<div><span class="w">${esc(w.w)}</span><span>${esc(w.m)}</span></div>`).join('');
+    $('rMissPanel').style.display = list.length ? '' : 'none';
+    $('again').style.display = list.length ? '' : 'none';
+    show('sResult');
+  }
+  $('again').addEventListener('click', () => startWith([...missed.values()]));
+  $('home').addEventListener('click', home);
+
+  /* ---------- 読み上げ ---------- */
+  let voice = null;
+  function pickVoice(){
+    const vs = speechSynthesis.getVoices();
+    voice = vs.find(v => /en[-_]US/i.test(v.lang) && /Samantha|Google|Natural/i.test(v.name))
+         || vs.find(v => /en[-_]US/i.test(v.lang)) || vs.find(v => /^en/i.test(v.lang)) || null;
+  }
+  if ('speechSynthesis' in window) { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
+  function speak(t){
+    if (!('speechSynthesis' in window)) return;
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(t);
+    u.lang = 'en-US'; u.rate = .9; if (voice) u.voice = voice;
+    speechSynthesis.speak(u);
+  }
+
+  home();
+})();
+</script>
+</body>
+</html>
