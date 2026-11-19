@@ -171,6 +171,13 @@
         <button class="btn" data-v="flip">めくったとき</button>
         <button class="btn" data-v="show">表示したとき</button>
       </div>
+      <div class="lbl" style="margin-top:14px">「まだ」の単語をもう一度出す</div>
+      <div class="seg" id="segRetry">
+        <button class="btn" data-v="soon">すぐ</button>
+        <button class="btn" data-v="later">あとで</button>
+        <button class="btn" data-v="end">最後にまとめて</button>
+        <button class="btn" data-v="none">出さない</button>
+      </div>
     </div>
 
     <p class="muted" id="poolMsg" style="margin:0"></p>
@@ -233,7 +240,7 @@
 
   let words = load(DATA_KEY, null);       // [{n,w,p,r,m,s}]
   let prog  = load(PROG_KEY, {});         // { n: {b:box, seen:count, last:ts} }
-  let set   = Object.assign({ from:1, to:100, filter:'all', dir:'e2j', order:'smart', size:'50', speak:'off' }, load(SET_KEY, {}));
+  let set   = Object.assign({ from:1, to:100, filter:'all', dir:'e2j', order:'smart', size:'50', speak:'off', retry:'soon' }, load(SET_KEY, {}));
 
   function show(id){ document.querySelectorAll('.screen').forEach(s => s.classList.toggle('on', s.id === id)); }
 
@@ -285,6 +292,7 @@
   }
   segInit('segFilter', 'filter'); segInit('segDir', 'dir'); segInit('segOrder', 'order');
   segInit('segSize', 'size');     segInit('segSpeak', 'speak');
+  segInit('segRetry', 'retry');
 
   const boxOf = n => prog[n]?.b;   // undefined = 未学習
 
@@ -411,9 +419,18 @@
       done++;
     } else {
       p.b = 0; missed.set(n, cur);
-      // 少し後（3〜5 枚後）にもう一度出す
-      const at = Math.min(queue.length, 3 + (Math.random() * 3 | 0));
-      queue.splice(at, 0, cur);
+      // 設定に応じてもう一度出す
+      //   soon : 3〜5 枚後 / later : 10〜12 枚後（残りが少なければ最後）
+      //   end  : 束の最後 / none : この回はもう出さない
+      if (set.retry === 'none') {
+        done++;
+      } else if (set.retry === 'end') {
+        queue.push(cur);
+      } else {
+        const base = set.retry === 'later' ? 10 : 3;
+        const at = Math.min(queue.length, base + (Math.random() * 3 | 0));
+        queue.splice(at, 0, cur);
+      }
     }
     prog[n] = p; save(PROG_KEY, prog);
     next();
